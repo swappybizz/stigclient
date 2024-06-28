@@ -7,6 +7,7 @@ import fitz  # PyMuPDF
 import docx
 import json
 from datetime import datetime
+
 st.set_page_config(page_title="Client Checklist Viewer", page_icon=":clipboard:")
 
 if "messages" not in st.session_state:
@@ -15,10 +16,10 @@ if "messages" not in st.session_state:
 
 MONGO_URI = st.secrets["mongo_uri"]
 client = MongoClient(MONGO_URI)
-db = client['Stig_checklist']
-collection = db['checklist']
-client_knowledge = db['client_knowledge']
-client_submissions = db['client_submissions']
+db = client["Stig_checklist"]
+collection = db["checklist"]
+client_knowledge = db["client_knowledge"]
+client_submissions = db["client_submissions"]
 
 st.title("Smart Checklist Bot")
 
@@ -27,7 +28,9 @@ client_id = st.text_input("Enter your Client ID:")
 
 if client_id:
     # Find checklists assigned to the client
-    assigned_checklists = list(collection.find({"assigned_clients": client_id}).sort("upload_date", -1))
+    assigned_checklists = list(
+        collection.find({"assigned_clients": client_id}).sort("upload_date", -1)
+    )
 
     if assigned_checklists:
         st.sidebar.title("Assigned Checklists")
@@ -42,7 +45,9 @@ if client_id:
 
         if selected_content:
             with st.expander("Checklist Content", expanded=False):
-                st.text_area("File Content", selected_content, height=500, disabled=True)
+                st.text_area(
+                    "File Content", selected_content, height=500, disabled=True
+                )
     else:
         st.warning("No checklists assigned to this client ID.")
 else:
@@ -51,41 +56,43 @@ else:
 # Upload client knowledge documents
 st.sidebar.markdown("---")
 st.sidebar.title("Upload Knowledge Documents")
-uploaded_file = st.sidebar.file_uploader("Upload a document (PDF or DOC)", type=['pdf', 'txt', 'docx'])
+uploaded_file = st.sidebar.file_uploader(
+    "Upload a document (PDF or DOC)", type=["pdf", "txt", "docx"]
+)
 
 if uploaded_file and client_id:
     file_name = uploaded_file.name
 
     # Check for duplicate filenames for the same client
     if client_knowledge.find_one({"client_id": client_id, "filename": file_name}):
-        st.sidebar.warning("A file with this name already exists for this client. Please rename your file and try again.")
+        st.sidebar.warning(
+            "A file with this name already exists for this client. Please rename your file and try again."
+        )
     else:
         file_content = uploaded_file.read()
-        if file_name.endswith('.pdf'):
-            doc = fitz.open(stream=uploaded_file.read(), filetype='pdf')
+        if file_name.endswith(".pdf"):
+            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
             content = ""
             for page in doc:
                 content += page.getText()
-        elif file_name.endswith('.docx'):
+        elif file_name.endswith(".docx"):
             doc = docx.Document(uploaded_file)
             content = ""
             for paragraph in doc.paragraphs:
                 content += paragraph.text
         else:
-            content = file_content.decode('utf-8')
-        
-        client_knowledge.insert_one({
-            "client_id": client_id,
-            "filename": file_name,
-            "content": content
-        })
+            content = file_content.decode("utf-8")
+
+        client_knowledge.insert_one(
+            {"client_id": client_id, "filename": file_name, "content": content}
+        )
         st.sidebar.success(f"File '{file_name}' uploaded successfully!")
 
 
 # Display client knowledge documents
 if client_id:
     client_docs = list(client_knowledge.find({"client_id": client_id}))
-    
+
     if client_docs:
         st.sidebar.title("Client Knowledgebase")
         for doc in client_docs:
@@ -102,7 +109,7 @@ for message in st.session_state.messages:
 if prompt := st.chat_input("Hi, lets start solving!"):
     with st.chat_message("user"):
         st.markdown(prompt)
-    # Add user message to chat history
+        # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
     client = OpenAI(api_key=st.secrets["openai_api_key"])
     checklist_content = selected_content
@@ -136,16 +143,19 @@ if prompt := st.chat_input("Hi, lets start solving!"):
     completion = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "user", "content": "You are a polite and helpful data entry clerk."},
-            {"role": "user", "content": prompty}
-        ]
-            )
-    response = (completion.choices[0].message.content)
+            {
+                "role": "user",
+                "content": "You are a polite and helpful data entry clerk.",
+            },
+            {"role": "user", "content": prompty},
+        ],
+    )
+    response = completion.choices[0].message.content
     print(response)
     st.session_state.messages.append({"role": "ai", "content": response})
     st.rerun()
-    
-    
+
+
 with st.sidebar:
     st.divider()
     if st.button("Submit for Audit"):
@@ -185,22 +195,16 @@ with st.sidebar:
             model="gpt-4o",
             messages=[
                 {"role": "user", "content": "You are a survey analyst and reporter."},
-                {"role": "user", "content": submi_prompt}
-            ]
-                )
+                {"role": "user", "content": submi_prompt},
+            ],
+        )
         response = completion.choices[0].message.content
         # add to client_submissions with current date and time and client_id
-        client_submissions.insert_one({
-            "client_id": client_id,
-            "submission": completion.choices[0].message.content,
-            "current_date": datetime.now()
-        })
+        client_submissions.insert_one(
+            {
+                "client_id": client_id,
+                "submission": completion.choices[0].message.content,
+                "current_date": datetime.now(),
+            }
+        )
         print(response)
-        
-        
-    
-
-
-                     
-        
-        
